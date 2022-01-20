@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>Leaderboard</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.24.0/axios.min.js" integrity="sha512-u9akINsQsAkG9xjc1cnGF4zw5TFDwkxuc9vUp5dltDWYCSmyd0meygbvgXrlc/z7/o4a19Fb5V0OUE58J7dcyw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script>
+        var socket = io()
+        io.connect('http://localhost:3000')
+    </script>
+</head>
+
+<body>
+    <div class="container" id="app">
+        <h3 class="text-center">Leaderboard</h3>
+        <div class="row" v-if="logged == false">
+            <div class="col-md-4"></div>
+            <div class="col-md-4">
+                <h2 class="text-center">Giriş ve Test</h2>
+                <span>Not : Test için username ve password aynı olacak şekilde ayarlandı. Sadece username girmeniz yeterlidir.</span>
+                <div class="form-group">
+                    <label>Username</label>
+                    <pre>Test Kullanıcısı :  {{user.username}} </pre>
+                    <input type="text" class="form-control" v-model='user.username'>
+                </div>
+                <div class="form-group">
+                    <button class="btn btn-primary pull-right" @click="login()">Test</button>
+                </div>
+            </div>
+            <div class="col-md-4"></div>
+        </div>
+        <div class="row" v-if="logged == true">
+            <div class="col-md-8">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Order</th>
+                            <th>Gap</th>
+                            <th>Username</th>
+                            <th>Coin</th>
+                            <th>Age</th>
+                            <th>Last Day</th>
+                            <th>Daily Score</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for=' (item,index) in leaderboard.first_hundred '>
+                            <td> <b>{{index+1}}</b> </td>
+                            <td>
+                                <b> <span v-if="item.gap == 0"> {{item.gap}}</span> </b>
+                                <b> <span v-if="item.gap < 0"> {{item.gap}}</span> </b>
+                                <b> <span v-if="item.gap > 0"> +{{item.gap}}</span> </b>
+                            </td>
+                            <td> {{item.username}} </td>
+                            <td> {{item.coin.toFixed(0)}} </td>
+                            <td> {{item.age}} </td>
+                            <td class='text-center '> <b>{{item.last_day}}</b> </td>
+                            <td class='text-center '> <b>{{item.live_score}}</b> </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="col-md-4">
+                <h2 class="text-center">Giriş ve Test</h2>
+                <span>Not : Test için username ve password aynı olacak şekilde ayarlandı. Sadece username girmeniz yeterlidir.</span>
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" class="form-control" v-model='user.username '>
+                </div>
+                <div class="form-group">
+                    <button class="btn btn-primary pull-right" @click="login()">Test</button>
+                </div>
+                <div class="clearfix"></div>
+                <h4 class="text-center">Burası saniyede bir score guncellemesi kuralina göre çalışıyor</h4>
+                <ul class="list-group">
+                    <li class="list-group-item"> Username : {{leaderboard.current_user.username}} </li>
+                    <li class="list-group-item"> Şuan ki sırası : {{user.order}} </li>
+                    <li class="list-group-item"> <b>Live Score : {{guncel}} <small>  <br> Not : Saniyede 10 artıyor. Socket ile aktarılıyor. Varolan skor ile toplanarak rediste tutuluyor. Socket disconnect olduğunda mongodb'ye ekleniyor. </small>                    </b>
+                    </li>
+                    <li class="list-group-item"> Age : {{leaderboard.current_user.age}} </li>
+                    <li class="list-group-item"> Game Coins : {{leaderboard.current_user.coin.toFixed(0)}} </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
+
+<script>
+    new Vue({
+        el: "#app",
+        data: {
+            guncel: 0,
+            logged: false,
+            user: {
+                username: "",
+                id: "",
+                order: 0
+            },
+            leaderboard: {
+                first_hundred: {},
+                three_front: {},
+                two_rear: {},
+                current_user: {}
+            }
+        },
+        methods: {
+            veriGonder() {
+                setInterval(() => {
+                    socket.emit('skorGonder', {
+                        id: this.leaderboard.current_user._id,
+                        data: 10
+                    })
+                    socket.on('sonuc', (data) => {
+                        this.guncel = data.data
+                    })
+                }, 1000);
+            },
+            getFirstHundred() {
+                axios.post('/first-hundred/?token=' + localStorage.token, {
+                    id: localStorage.id
+                }).then(response => {
+                    if (response.data.status == true) {
+                        this.leaderboard.current_user = response.data.result.current_user
+                        this.user.order = response.data.result.currentUserSort
+                        this.leaderboard.first_hundred = response.data.result.first_hundred
+                        this.leaderboard.three_front = response.data.result.three_front
+                        this.leaderboard.two_rear = response.data.result.two_rear
+                    } else {
+                        this.leaderboard = {}
+                    }
+                })
+            },
+            login() {
+                axios.post('/users/login', {
+                    username: this.user.username,
+                    password: this.user.username
+                }).then(response => {
+                    localStorage.clear
+                    if (response.status == 200) {
+                        this.logged = true
+                        this.user.id = response.data.id
+                        localStorage.username = response.data.username
+                        localStorage.id = response.data.id
+                        localStorage.token = response.data.token
+                        window.location = "/"
+                    } else {
+                        this.logged = true
+                    }
+                })
+            },
+            getTestUser() {
+                axios.get('/users/get_test_user').then(response => {
+                    this.user.username = response.data.data
+                })
+            }
+        },
+        created() {
+            if (localStorage.id) {
+                this.logged = true
+                this.veriGonder()
+                this.getFirstHundred()
+            } else {
+                this.getTestUser()
+                this.logged = false
+            }
+        }
+    })
+</script>
