@@ -1,6 +1,7 @@
 # LEADERBOARD CHALLENGE
 
 * Not : Lütfen Redis'i default portunda ayağa kaldırın
+* Not : .env.example dosyasının adını .env olarak değiştiriniz
 
 ## Başlarken
 ```
